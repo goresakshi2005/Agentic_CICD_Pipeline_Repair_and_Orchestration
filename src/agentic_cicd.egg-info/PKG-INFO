@@ -1,0 +1,51 @@
+Metadata-Version: 2.4
+Name: agentic-cicd
+Version: 0.1.0
+Summary: Autonomous CI/CD pipeline repair and release orchestration
+Author-email: Gore Sakshi <goresakshi2005@gmail.com>
+License: MIT
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: fastapi
+Requires-Dist: uvicorn
+Requires-Dist: python-dotenv
+Requires-Dist: httpx
+Requires-Dist: click
+Requires-Dist: pyyaml
+Requires-Dist: pydantic-settings
+Requires-Dist: loguru
+Requires-Dist: langchain
+Requires-Dist: langchain-community
+Requires-Dist: langchain-google-genai
+Requires-Dist: langgraph
+Requires-Dist: faiss-cpu
+Requires-Dist: sqlalchemy
+Requires-Dist: alembic
+Requires-Dist: slack-sdk
+Requires-Dist: junitparser
+Requires-Dist: safety
+Requires-Dist: pytest
+Requires-Dist: pytest-asyncio
+Requires-Dist: pytest-mock
+Requires-Dist: python-multipart
+Dynamic: license-file
+
+# Agentic CI/CD
+
+Autonomous pipeline repair and intelligent release orchestration.
+
+## Features
+
+- **Multi‑agent coordination** with LangGraph
+- **LLM‑powered diagnosis** (Gemini, OpenAI)
+- **Security scanning** (Safety, etc.)
+- **Automatic fix generation** (PR creation)
+- **Slack‑based human approvals**
+- **Canary deployment orchestration**
+- **Knowledge base** of past failures (FAISS)
+
+## Installation
+
+```bash
+pip install agentic-cicd

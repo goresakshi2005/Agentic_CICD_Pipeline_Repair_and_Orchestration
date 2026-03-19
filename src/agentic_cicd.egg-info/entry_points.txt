@@ -1,0 +1,2 @@
+[console_scripts]
+agentic-cicd = agentic_cicd.cli:cli

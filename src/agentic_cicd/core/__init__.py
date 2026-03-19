@@ -1,5 +1,5 @@
 """Core abstractions for agentic_cicd."""
 
-from .interfaces import AgentInterface
+from .interfaces import VCSProvider, CIProvider, LLMProvider, NotificationProvider
 
-__all__ = ["AgentInterface"]
+__all__ = ["VCSProvider", "CIProvider", "LLMProvider", "NotificationProvider"]

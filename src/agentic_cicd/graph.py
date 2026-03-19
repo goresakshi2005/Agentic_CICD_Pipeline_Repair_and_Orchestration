@@ -26,25 +26,35 @@ workflow.add_edge("diagnose", "security_scan")
 workflow.add_edge("security_scan", "governance")
 
 def after_governance(state: WorkflowState):
+    """If approval is required, stop and wait for external approval via /approve.
+    Otherwise, proceed to repair."""
     if state.requires_approval:
-        return "wait_approval"   # external
+        return END
     else:
         return "repair"
 
-workflow.add_conditional_edges("governance", after_governance, {
-    "wait_approval": "wait_approval",
-    "repair": "repair"
-})
+workflow.add_conditional_edges(
+    "governance",
+    after_governance,
+    {
+        "repair": "repair",
+        END: END
+    }
+)
 
 def after_repair(state: WorkflowState):
     if state.fix_plan and state.fix_plan.get("strategy") == "deploy":
         return "release"
     return END
 
-workflow.add_conditional_edges("repair", after_repair, {
-    "release": "release",
-    END: END
-})
+workflow.add_conditional_edges(
+    "repair",
+    after_repair,
+    {
+        "release": "release",
+        END: END
+    }
+)
 
 workflow.add_edge("release", END)
 
