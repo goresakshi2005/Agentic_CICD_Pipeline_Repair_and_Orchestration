@@ -1,41 +1,44 @@
-from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
-from .config_loader import load_config
+from fastapi import FastAPI, Request, BackgroundTasks, HTTPException, Depends
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from .config import settings
+from .database import get_db, PipelineRun
 from .graph import run_workflow
-from .database import SessionLocal, PipelineRun
 from .models import ApprovalRequest
 from .agents.repair import RepairAgent
 from .adapters import get_vcs_adapter, get_ci_adapter
-from .notifications.slack import SlackNotifier
+from .adapters.llm import get_llm_provider
+from .notifications import get_notification_provider
 import logging
 import asyncio
+import hmac
+import hashlib
 
-app = FastAPI()
 logger = logging.getLogger(__name__)
 
-# These will be set after loading config
-vcs = ci = notifier = None
+app = FastAPI()
+
+# Global instances (set after config load)
+vcs = None
+ci = None
+llm = None
+notifier = None
 
 @app.on_event("startup")
 async def startup():
-    global vcs, ci, notifier
-    # Config already loaded by CLI
-    from .config import settings
+    global vcs, ci, llm, notifier
     vcs = get_vcs_adapter()
     ci = get_ci_adapter()
-    if settings.slack_token:
-        from .notifications.slack import SlackNotifier
-        notifier = SlackNotifier(settings.slack_token, settings.slack_channel)
-    else:
-        notifier = None
-    # Start background monitor
+    llm = get_llm_provider()
+    notifier = get_notification_provider()
+    # Start background polling
     asyncio.create_task(monitor_polling())
 
 async def monitor_polling():
-    from .config import settings
     while True:
         try:
             runs = await ci.list_runs(status="completed", limit=10)
-            db = SessionLocal()
+            db = next(get_db())
             for run in runs:
                 run_id = run["id"]
                 existing = db.query(PipelineRun).filter_by(run_id=run_id).first()
@@ -47,14 +50,25 @@ async def monitor_polling():
             logger.error(f"Polling error: {e}")
         await asyncio.sleep(settings.poll_interval)
 
+def verify_webhook_signature(payload: bytes, signature: str) -> bool:
+    if not settings.webhook_secret:
+        return True
+    mac = hmac.new(settings.webhook_secret.encode(), msg=payload, digestmod=hashlib.sha256)
+    expected = "sha256=" + mac.hexdigest()
+    return hmac.compare_digest(expected, signature)
+
 @app.post("/webhook")
 async def webhook(request: Request, background_tasks: BackgroundTasks):
-    # Determine provider from headers (e.g., X-GitHub-Event)
-    # Simplified: assume GitHub for now
+    payload_bytes = await request.body()
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    if not verify_webhook_signature(payload_bytes, signature):
+        raise HTTPException(403, "Invalid signature")
+
+    payload = await request.json()
     event = request.headers.get("X-GitHub-Event")
     if event != "workflow_run":
         return {"status": "ignored"}
-    payload = await request.json()
+
     run = payload.get("workflow_run")
     if run and run.get("status") == "completed" and run.get("conclusion") == "failure":
         background_tasks.add_task(run_workflow, run["id"])
@@ -62,14 +76,16 @@ async def webhook(request: Request, background_tasks: BackgroundTasks):
     return {"status": "ignored"}
 
 @app.post("/approve")
-async def approve(req: ApprovalRequest):
-    db = SessionLocal()
+async def approve(req: ApprovalRequest, db: Session = Depends(get_db)):
     run = db.query(PipelineRun).filter_by(run_id=req.run_id).first()
     if not run:
         raise HTTPException(404, "Run not found")
+
     if req.approved:
-        # Apply fix
-        agent = RepairAgent(None, vcs, ci, notifier)  # llm not needed for applying
+        if not run.fix_plan:
+            raise HTTPException(400, "No fix plan available for this run")
+        # Reuse repair agent to apply fix
+        agent = RepairAgent(llm, vcs, ci, notifier)
         pr_url = await agent._apply_fix(run.fix_plan, run.branch or "main")
         run.approval_status = "approved"
         run.pr_url = pr_url
@@ -79,6 +95,27 @@ async def approve(req: ApprovalRequest):
         run.approval_status = "rejected"
         db.commit()
         return {"status": "rejected"}
+
+@app.post("/slack/actions")
+async def slack_actions(request: Request):
+    form = await request.form()
+    payload = form.get("payload")
+    if not payload:
+        raise HTTPException(400, "Missing payload")
+    import json
+    data = json.loads(payload)
+    action = data["actions"][0]
+    value = action["value"]
+    if value.startswith("approve_"):
+        run_id = int(value.split("_")[1])
+        # Call internal approve endpoint
+        async with httpx.AsyncClient() as client:
+            await client.post("http://localhost:8000/approve", json={"run_id": run_id, "approved": True, "user": "slack"})
+    elif value.startswith("reject_"):
+        run_id = int(value.split("_")[1])
+        async with httpx.AsyncClient() as client:
+            await client.post("http://localhost:8000/approve", json={"run_id": run_id, "approved": False, "user": "slack"})
+    return JSONResponse(content={"text": "Received"})
 
 @app.get("/health")
 async def health():

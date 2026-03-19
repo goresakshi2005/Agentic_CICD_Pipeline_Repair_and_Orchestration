@@ -1,8 +1,6 @@
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import Optional, List, Dict, Any
-import yaml
-import os
 
 class Settings(BaseSettings):
     # Core
@@ -10,25 +8,25 @@ class Settings(BaseSettings):
 
     # VCS
     vcs_provider: str = "github"
-    vcs_token: str = Field(..., env="VCS_TOKEN")
-    vcs_repo: str = Field(..., env="VCS_REPO")
+    vcs_token: str = Field(..., env=["VCS_TOKEN", "GITHUB_TOKEN"])
+    vcs_repo: str = Field(..., env=["VCS_REPO", "GITHUB_REPO"])
 
     # CI (if different from VCS)
     ci_provider: Optional[str] = None
-    ci_token: Optional[str] = None
-    ci_url: Optional[str] = None
+    ci_token: Optional[str] = Field(None, env=["CI_TOKEN", "GITHUB_TOKEN"])
+    ci_url: Optional[str] = Field(None, env="CI_URL")
 
     # LLM
-    llm_provider: str = "gemini"
-    llm_api_key: str = Field(..., env="LLM_API_KEY")
-    llm_model: str = "gemini-2.5-flash"
+    llm_provider: str = Field("gemini", env=["LLM_PROVIDER", "GEMINI_API_KEY"])
+    llm_api_key: str = Field(..., env=["LLM_API_KEY", "GEMINI_API_KEY"])
+    llm_model: str = Field("gemini-2.5-flash", env="LLM_MODEL")
 
     # Notifications
     slack_token: Optional[str] = Field(None, env="SLACK_TOKEN")
-    slack_channel: Optional[str] = "#deploy-approvals"
+    slack_channel: Optional[str] = Field("#deploy-approvals", env="SLACK_CHANNEL")
 
     # Database
-    database_url: str = "sqlite:///./app.db"
+    database_url: str = Field("sqlite:///./app.db", env="DATABASE_URL")
 
     # Security scanners (list of commands)
     security_scanners: List[Dict[str, Any]] = []
@@ -45,14 +43,11 @@ class Settings(BaseSettings):
     # Polling interval (seconds)
     poll_interval: int = 60
 
+    # Webhook secret (optional)
+    webhook_secret: Optional[str] = Field(None, env="WEBHOOK_SECRET")
+
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
-    @classmethod
-    def from_yaml(cls, path: str):
-        with open(path) as f:
-            yaml_config = yaml.safe_load(f)
-        # Merge with environment (env overrides)
-        return cls(**yaml_config)
-
-settings = Settings()  # will load from .env first
+settings = Settings()

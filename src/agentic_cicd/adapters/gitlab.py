@@ -1,6 +1,6 @@
-class GitLabAdapter:
-    def __init__(self, token: str = None):
-        self.token = token
+from ..core.interfaces import VCSProvider, CIProvider
+from typing import Dict, Any, Optional, List
 
-    def project_info(self, project_id: str):
-        return {"project_id": project_id}
+class GitLabAdapter(VCSProvider, CIProvider):
+    def __init__(self, token: str, repo: str):
+        raise NotImplementedError("GitLab adapter is not yet implemented")

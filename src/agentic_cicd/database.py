@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, JSON, Text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, JSON, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -13,6 +13,7 @@ Base = declarative_base()
 
 class PipelineRun(Base):
     __tablename__ = "pipeline_runs"
+
     id = Column(Integer, primary_key=True)
     run_id = Column(Integer, unique=True, index=True)
     status = Column(String)
@@ -24,16 +25,27 @@ class PipelineRun(Base):
     fix_plan = Column(JSON, nullable=True)
     approval_status = Column(String, default="pending")
     pr_url = Column(String, nullable=True)
+    deployment_id = Column(Integer, nullable=True)
+    canary_percent = Column(Integer, default=0)
+    rollback_sha = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class FixKnowledge(Base):
     __tablename__ = "fix_knowledge"
+
     id = Column(Integer, primary_key=True)
     problem_signature = Column(String, unique=True)
     solution = Column(Text)
-    fix_type = Column(String)
+    fix_type = Column(String, nullable=True)
     pr_url = Column(String, nullable=True)
     applied_at = Column(DateTime, default=datetime.utcnow)
     success_count = Column(Integer, default=1)
 
 Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

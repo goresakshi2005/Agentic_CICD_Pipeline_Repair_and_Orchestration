@@ -1,6 +1,6 @@
-class JenkinsAdapter:
-    def __init__(self, url: str = None):
-        self.url = url
+from ..core.interfaces import CIProvider
+from typing import Dict, Any, Optional, List
 
-    def job_info(self, name: str):
-        return {"job": name}
+class JenkinsAdapter(CIProvider):
+    def __init__(self, url: str, token: str):
+        raise NotImplementedError("Jenkins adapter is not yet implemented")

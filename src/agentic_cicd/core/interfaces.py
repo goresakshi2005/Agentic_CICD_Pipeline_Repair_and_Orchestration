@@ -62,5 +62,5 @@ class NotificationProvider(ABC):
     """Notification service (Slack, Teams, email)"""
 
     @abstractmethod
-    async def send_approval_request(self, run_id: str, diagnosis: dict, fix_plan: dict):
+    async def send_approval_request(self, run_id: str, diagnosis: dict, fix_plan: dict = None):
         pass

@@ -1,5 +1,5 @@
-import click
 import asyncio
+import click
 import uvicorn
 from .config_loader import load_config
 from .server import app
@@ -7,10 +7,11 @@ from .graph import run_workflow
 
 @click.group()
 def cli():
+    """Agentic CI/CD - Autonomous pipeline repair and release orchestration."""
     pass
 
 @cli.command()
-@click.option("--config", "-c", default="config.yaml", help="Configuration file")
+@click.option("--config", "-c", default="config.yaml", help="Configuration file path")
 @click.option("--host", default="0.0.0.0", help="Host to bind")
 @click.option("--port", default=8000, help="Port to bind")
 def serve(config, host, port):
@@ -30,15 +31,15 @@ def analyze(run_id, config):
 @click.option("--config", "-c", default="config.yaml")
 def init(config):
     """Generate a sample configuration file."""
-    sample = """
+    sample = """# Agentic CI/CD configuration
 vcs_provider: github
-vcs_repo: yourorg/yourrepo
+vcs_repo: yourorg/yourproject
 llm_provider: gemini
-slack_channel: "#alerts"
+slack_channel: "#deploy-approvals"
 """
     with open(config, "w") as f:
         f.write(sample)
-    click.echo(f"Sample config written to {config}")
+    click.echo(f"✅ Sample configuration written to {config}")
 
 if __name__ == "__main__":
     cli()
