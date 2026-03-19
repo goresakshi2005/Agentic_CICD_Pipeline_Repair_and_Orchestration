@@ -1,0 +1,1448 @@
+Directory structure:
+└── agentic-cicd_Pipeline/
+    ├── README.md
+    ├── LICENSE
+    ├── pyproject.toml
+    ├── requirements.txt
+    ├── docs/
+    │   └── README.md
+    ├── examples/
+    │   └── README.md
+    ├── src/
+    │   └── agentic_cicd/
+    │       ├── __init__.py
+    │       ├── __main__.py
+    │       ├── cli.py
+    │       ├── config.py
+    │       ├── config_loader.py
+    │       ├── database.py
+    │       ├── graph.py
+    │       ├── knowledge_base.py
+    │       ├── server.py
+    │       ├── utils.py
+    │       ├── adapters/
+    │       │   ├── __init__.py
+    │       │   ├── github.py
+    │       │   ├── gitlab.py
+    │       │   ├── jenkins.py
+    │       │   └── llm.py
+    │       ├── agents/
+    │       │   ├── __init__.py
+    │       │   ├── base.py
+    │       │   ├── diagnose.py
+    │       │   ├── governance.py
+    │       │   ├── monitor.py
+    │       │   ├── release.py
+    │       │   ├── repair.py
+    │       │   └── security.py
+    │       ├── core/
+    │       │   ├── __init__.py
+    │       │   ├── interfaces.py
+    │       │   └── models.py
+    │       └── notifications/
+    │           ├── __init__.py
+    │           └── slack.py
+    └── tests/
+        └── __init__.py
+
+================================================
+FILE: README.md
+================================================
+# agentic-cicd Pipeline (src layout)
+
+This repository contains the `agentic_cicd` package under `src/` and scaffolding for adapters, agents, notifications, and a FastAPI server placeholder.
+
+
+
+================================================
+FILE: LICENSE
+================================================
+MIT License
+
+Copyright (c) 2026
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+
+
+================================================
+FILE: pyproject.toml
+================================================
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-cicd"
+version = "0.0.0"
+description = "Scaffolded agentic CICD pipeline package"
+authors = [{name = ""}]
+
+
+
+================================================
+FILE: requirements.txt
+================================================
+fastapi
+uvicorn
+python-dotenv
+httpx
+click
+pyyaml
+pydantic-settings
+loguru
+langchain
+langchain-community
+langchain-google-genai
+langgraph
+faiss-cpu
+sqlalchemy
+alembic
+slack-sdk
+junitparser
+safety
+pytest
+pytest-asyncio
+pytest-mock
+python-multipart
+
+
+================================================
+FILE: docs/README.md
+================================================
+# Documentation
+
+Project documentation goes here.
+
+
+
+================================================
+FILE: examples/README.md
+================================================
+# Examples
+
+Place example projects and configs here.
+
+
+
+================================================
+FILE: src/agentic_cicd/__init__.py
+================================================
+"""Top-level package for agentic_cicd."""
+
+__all__ = ["cli", "config", "core", "adapters", "agents", "graph", "knowledge_base", "database", "notifications", "server"]
+
+
+
+================================================
+FILE: src/agentic_cicd/__main__.py
+================================================
+from .cli import cli
+
+if __name__ == "__main__":
+    cli()
+
+
+================================================
+FILE: src/agentic_cicd/cli.py
+================================================
+import asyncio
+import click
+import uvicorn
+from .config_loader import load_config
+from .server import app
+from .graph import run_workflow
+
+@click.group()
+def cli():
+    """Agentic CI/CD - Autonomous pipeline repair and release orchestration."""
+    pass
+
+@cli.command()
+@click.option("--config", "-c", default="config.yaml", help="Configuration file path")
+@click.option("--host", default="0.0.0.0", help="Host to bind")
+@click.option("--port", default=8000, help="Port to bind")
+def serve(config, host, port):
+    """Start the webhook server."""
+    load_config(config)
+    uvicorn.run(app, host=host, port=port)
+
+@cli.command()
+@click.argument("run_id")
+@click.option("--config", "-c", default="config.yaml")
+def analyze(run_id, config):
+    """Analyze a specific workflow run immediately."""
+    load_config(config)
+    asyncio.run(run_workflow(int(run_id)))
+
+@cli.command()
+@click.option("--config", "-c", default="config.yaml")
+def init(config):
+    """Generate a sample configuration file."""
+    sample = """# Agentic CI/CD configuration
+vcs_provider: github
+vcs_repo: yourorg/yourproject
+llm_provider: gemini
+slack_channel: "#deploy-approvals"
+"""
+    with open(config, "w") as f:
+        f.write(sample)
+    click.echo(f"âœ… Sample configuration written to {config}")
+
+if __name__ == "__main__":
+    cli()
+
+
+================================================
+FILE: src/agentic_cicd/config.py
+================================================
+from pydantic_settings import BaseSettings
+from pydantic import Field
+from typing import Optional, List, Dict, Any
+
+class Settings(BaseSettings):
+    # Core
+    debug: bool = False
+
+    # VCS
+    vcs_provider: str = "github"
+    vcs_token: str = Field(..., env=["VCS_TOKEN", "GITHUB_TOKEN"])
+    vcs_repo: str = Field(..., env=["VCS_REPO", "GITHUB_REPO"])
+
+    # CI (if different from VCS)
+    ci_provider: Optional[str] = None
+    ci_token: Optional[str] = Field(None, env=["CI_TOKEN", "GITHUB_TOKEN"])
+    ci_url: Optional[str] = Field(None, env="CI_URL")
+
+    # LLM
+    llm_provider: str = Field("gemini", env=["LLM_PROVIDER", "GEMINI_API_KEY"])
+    llm_api_key: str = Field(..., env=["LLM_API_KEY", "GEMINI_API_KEY"])
+    llm_model: str = Field("gemini-2.5-flash", env="LLM_MODEL")
+
+    # Notifications
+    slack_token: Optional[str] = Field(None, env="SLACK_TOKEN")
+    slack_channel: Optional[str] = Field("#deploy-approvals", env="SLACK_CHANNEL")
+
+    # Database
+    database_url: str = Field("sqlite:///./app.db", env="DATABASE_URL")
+
+    # Security scanners (list of commands)
+    security_scanners: List[Dict[str, Any]] = []
+
+    # Agents to run (order matters)
+    agents: List[str] = ["monitor", "diagnose", "security", "governance", "repair", "release"]
+
+    # Governance rules
+    governance: Dict[str, Any] = {
+        "critical_files": ["requirements.txt", "Dockerfile", ".github/workflows/"],
+        "confidence_threshold": 0.7,
+    }
+
+    # Polling interval (seconds)
+    poll_interval: int = 60
+
+    # Webhook secret (optional)
+    webhook_secret: Optional[str] = Field(None, env="WEBHOOK_SECRET")
+
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
+
+settings = Settings()
+
+
+================================================
+FILE: src/agentic_cicd/config_loader.py
+================================================
+import yaml
+import os
+from .config import Settings
+
+def load_config(path: str) -> Settings:
+    """Load configuration from a YAML file and override with environment variables."""
+    if os.path.exists(path):
+        with open(path) as f:
+            yaml_config = yaml.safe_load(f)
+        # Merge with environment (env takes precedence)
+        return Settings(**yaml_config)
+    else:
+        # Fallback to env only
+        return Settings()
+
+
+================================================
+FILE: src/agentic_cicd/database.py
+================================================
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, JSON, Text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+from .config import settings
+
+engine = create_engine(
+    settings.database_url,
+    connect_args={"check_same_thread": False} if "sqlite" in settings.database_url else {}
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class PipelineRun(Base):
+    __tablename__ = "pipeline_runs"
+
+    id = Column(Integer, primary_key=True)
+    run_id = Column(Integer, unique=True, index=True)
+    status = Column(String)
+    conclusion = Column(String)
+    commit_sha = Column(String)
+    branch = Column(String)
+    logs = Column(Text, nullable=True)
+    diagnosis = Column(JSON, nullable=True)
+    fix_plan = Column(JSON, nullable=True)
+    approval_status = Column(String, default="pending")
+    pr_url = Column(String, nullable=True)
+    deployment_id = Column(Integer, nullable=True)
+    canary_percent = Column(Integer, default=0)
+    rollback_sha = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class FixKnowledge(Base):
+    __tablename__ = "fix_knowledge"
+
+    id = Column(Integer, primary_key=True)
+    problem_signature = Column(String, unique=True)
+    solution = Column(Text)
+    fix_type = Column(String, nullable=True)
+    pr_url = Column(String, nullable=True)
+    applied_at = Column(DateTime, default=datetime.utcnow)
+    success_count = Column(Integer, default=1)
+
+Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+================================================
+FILE: src/agentic_cicd/graph.py
+================================================
+from langgraph.graph import StateGraph, END
+from .core.models import WorkflowState
+from .agents import monitor, diagnose, security, governance, repair, release
+from .adapters import get_vcs_adapter, get_ci_adapter
+from .adapters.llm import get_llm_provider
+from .notifications import get_notification_provider
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Build graph
+workflow = StateGraph(WorkflowState)
+
+# Add nodes (each agent's process function)
+workflow.add_node("monitor", monitor.MonitorAgent.process)
+workflow.add_node("diagnose", diagnose.DiagnoseAgent.process)
+workflow.add_node("security_scan", security.SecurityAgent.process)
+workflow.add_node("governance", governance.GovernanceAgent.process)
+workflow.add_node("repair", repair.RepairAgent.process)
+workflow.add_node("release", release.ReleaseAgent.process)
+
+workflow.set_entry_point("monitor")
+
+workflow.add_edge("monitor", "diagnose")
+workflow.add_edge("diagnose", "security_scan")
+workflow.add_edge("security_scan", "governance")
+
+def after_governance(state: WorkflowState):
+    if state.requires_approval:
+        return "wait_approval"   # external
+    else:
+        return "repair"
+
+workflow.add_conditional_edges("governance", after_governance, {
+    "wait_approval": "wait_approval",
+    "repair": "repair"
+})
+
+def after_repair(state: WorkflowState):
+    if state.fix_plan and state.fix_plan.get("strategy") == "deploy":
+        return "release"
+    return END
+
+workflow.add_conditional_edges("repair", after_repair, {
+    "release": "release",
+    END: END
+})
+
+workflow.add_edge("release", END)
+
+agent_graph = workflow.compile()
+
+async def run_workflow(run_id: int):
+    """Convenience function to start a workflow with given run_id."""
+    from .config import settings
+    vcs = get_vcs_adapter()
+    ci = get_ci_adapter()
+    llm = get_llm_provider()
+    notifier = get_notification_provider()
+
+    # Initialize agents with dependencies
+    monitor_agent = monitor.MonitorAgent(llm, vcs, ci, notifier)
+    diagnose_agent = diagnose.DiagnoseAgent(llm, vcs, ci, notifier)
+    security_agent = security.SecurityAgent(llm, vcs, ci, notifier)
+    governance_agent = governance.GovernanceAgent(llm, vcs, ci, notifier)
+    repair_agent = repair.RepairAgent(llm, vcs, ci, notifier)
+    release_agent = release.ReleaseAgent(llm, vcs, ci, notifier)
+
+    # Override node functions with bound methods
+    workflow.nodes["monitor"].fn = monitor_agent.process
+    workflow.nodes["diagnose"].fn = diagnose_agent.process
+    workflow.nodes["security_scan"].fn = security_agent.process
+    workflow.nodes["governance"].fn = governance_agent.process
+    workflow.nodes["repair"].fn = repair_agent.process
+    workflow.nodes["release"].fn = release_agent.process
+
+    initial_state = WorkflowState(run_id=run_id)
+    final_state = await agent_graph.ainvoke(initial_state)
+    return final_state
+
+
+================================================
+FILE: src/agentic_cicd/knowledge_base.py
+================================================
+import os
+import json
+import logging
+from datetime import datetime
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_core.documents import Document
+from .config import settings
+from .database import SessionLocal, FixKnowledge
+
+logger = logging.getLogger(__name__)
+
+class KnowledgeBase:
+    def __init__(self):
+        self.embeddings = None
+        if settings.llm_provider == "gemini":
+            try:
+                self.embeddings = GoogleGenerativeAIEmbeddings(
+                    model="text-embedding-004",
+                    google_api_key=settings.llm_api_key
+                )
+            except Exception as e:
+                logger.warning(f"Could not initialize embeddings: {e}")
+        self.vector_store_path = "faiss_index"
+        self.store = self._get_vector_store()
+
+    def _get_vector_store(self):
+        """Return a vector store (FAISS if available, else in-memory fallback)."""
+        class InMemoryVectorStore:
+            def __init__(self, docs=None):
+                self.docs = docs or []
+
+            def add_documents(self, docs):
+                self.docs.extend(docs)
+
+            def similarity_search(self, query, k=3):
+                q_tokens = set(query.lower().split())
+                scored = []
+                for d in self.docs:
+                    text = d.page_content
+                    score = len(q_tokens.intersection(set(text.lower().split())))
+                    scored.append((score, d))
+                scored.sort(key=lambda x: x[0], reverse=True)
+                return [d for _, d in scored[:k]]
+
+            def save_local(self, path):
+                os.makedirs(path, exist_ok=True)
+                data = [{"page_content": d.page_content, "metadata": d.metadata} for d in self.docs]
+                with open(os.path.join(path, "in_memory_store.json"), "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+
+            @classmethod
+            def load_local(cls, path, *args, **kwargs):
+                file = os.path.join(path, "in_memory_store.json")
+                if not os.path.exists(file):
+                    return cls()
+                with open(file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                docs = [Document(page_content=item["page_content"], metadata=item["metadata"]) for item in data]
+                return cls(docs=docs)
+
+        if os.path.exists(self.vector_store_path):
+            if self.embeddings is not None:
+                try:
+                    return FAISS.load_local(self.vector_store_path, self.embeddings, allow_dangerous_deserialization=True)
+                except Exception as e:
+                    logger.warning(f"Failed to load FAISS, using in-memory fallback: {e}")
+                    return InMemoryVectorStore.load_local(self.vector_store_path)
+            else:
+                return InMemoryVectorStore.load_local(self.vector_store_path)
+
+        if self.embeddings is not None:
+            try:
+                return FAISS.from_texts(["Placeholder"], self.embeddings)
+            except Exception as e:
+                logger.warning(f"FAISS.from_texts failed, using in-memory fallback: {e}")
+                return InMemoryVectorStore([Document(page_content="Placeholder")])
+        else:
+            return InMemoryVectorStore([Document(page_content="Placeholder")])
+
+    def add_fix(self, problem: str, solution: str, fix_type: str, success: bool = True, pr_url: str = None):
+        doc = Document(
+            page_content=f"Problem: {problem}\nSolution: {solution}",
+            metadata={"fix_type": fix_type, "success": success, "timestamp": datetime.utcnow().isoformat(), "pr_url": pr_url}
+        )
+        self.store.add_documents([doc])
+        self.store.save_local(self.vector_store_path)
+
+        # Also store in SQL
+        db = SessionLocal()
+        sig = problem[:255]
+        existing = db.query(FixKnowledge).filter_by(problem_signature=sig).first()
+        if existing:
+            existing.success_count += 1 if success else 0
+        else:
+            db.add(FixKnowledge(
+                problem_signature=sig,
+                solution=solution,
+                fix_type=fix_type,
+                pr_url=pr_url,
+                success_count=1 if success else 0
+            ))
+        db.commit()
+        db.close()
+
+    def search(self, problem: str, k: int = 3):
+        return self.store.similarity_search(problem, k=k)
+
+
+================================================
+FILE: src/agentic_cicd/server.py
+================================================
+from fastapi import FastAPI, Request, BackgroundTasks, HTTPException, Depends
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+from .config import settings
+from .database import get_db, PipelineRun
+from .graph import run_workflow
+from .models import ApprovalRequest
+from .agents.repair import RepairAgent
+from .adapters import get_vcs_adapter, get_ci_adapter
+from .adapters.llm import get_llm_provider
+from .notifications import get_notification_provider
+import logging
+import asyncio
+import hmac
+import hashlib
+
+logger = logging.getLogger(__name__)
+
+app = FastAPI()
+
+# Global instances (set after config load)
+vcs = None
+ci = None
+llm = None
+notifier = None
+
+@app.on_event("startup")
+async def startup():
+    global vcs, ci, llm, notifier
+    vcs = get_vcs_adapter()
+    ci = get_ci_adapter()
+    llm = get_llm_provider()
+    notifier = get_notification_provider()
+    # Start background polling
+    asyncio.create_task(monitor_polling())
+
+async def monitor_polling():
+    while True:
+        try:
+            runs = await ci.list_runs(status="completed", limit=10)
+            db = next(get_db())
+            for run in runs:
+                run_id = run["id"]
+                existing = db.query(PipelineRun).filter_by(run_id=run_id).first()
+                if not existing and run["conclusion"] == "failure":
+                    logger.info(f"Polling found unprocessed failed run {run_id}")
+                    asyncio.create_task(run_workflow(run_id))
+            db.close()
+        except Exception as e:
+            logger.error(f"Polling error: {e}")
+        await asyncio.sleep(settings.poll_interval)
+
+def verify_webhook_signature(payload: bytes, signature: str) -> bool:
+    if not settings.webhook_secret:
+        return True
+    mac = hmac.new(settings.webhook_secret.encode(), msg=payload, digestmod=hashlib.sha256)
+    expected = "sha256=" + mac.hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+@app.post("/webhook")
+async def webhook(request: Request, background_tasks: BackgroundTasks):
+    payload_bytes = await request.body()
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    if not verify_webhook_signature(payload_bytes, signature):
+        raise HTTPException(403, "Invalid signature")
+
+    payload = await request.json()
+    event = request.headers.get("X-GitHub-Event")
+    if event != "workflow_run":
+        return {"status": "ignored"}
+
+    run = payload.get("workflow_run")
+    if run and run.get("status") == "completed" and run.get("conclusion") == "failure":
+        background_tasks.add_task(run_workflow, run["id"])
+        return {"status": "processing"}
+    return {"status": "ignored"}
+
+@app.post("/approve")
+async def approve(req: ApprovalRequest, db: Session = Depends(get_db)):
+    run = db.query(PipelineRun).filter_by(run_id=req.run_id).first()
+    if not run:
+        raise HTTPException(404, "Run not found")
+
+    if req.approved:
+        if not run.fix_plan:
+            raise HTTPException(400, "No fix plan available for this run")
+        # Reuse repair agent to apply fix
+        agent = RepairAgent(llm, vcs, ci, notifier)
+        pr_url = await agent._apply_fix(run.fix_plan, run.branch or "main")
+        run.approval_status = "approved"
+        run.pr_url = pr_url
+        db.commit()
+        return {"status": "approved", "pr_url": pr_url}
+    else:
+        run.approval_status = "rejected"
+        db.commit()
+        return {"status": "rejected"}
+
+@app.post("/slack/actions")
+async def slack_actions(request: Request):
+    form = await request.form()
+    payload = form.get("payload")
+    if not payload:
+        raise HTTPException(400, "Missing payload")
+    import json
+    data = json.loads(payload)
+    action = data["actions"][0]
+    value = action["value"]
+    if value.startswith("approve_"):
+        run_id = int(value.split("_")[1])
+        # Call internal approve endpoint
+        async with httpx.AsyncClient() as client:
+            await client.post("http://localhost:8000/approve", json={"run_id": run_id, "approved": True, "user": "slack"})
+    elif value.startswith("reject_"):
+        run_id = int(value.split("_")[1])
+        async with httpx.AsyncClient() as client:
+            await client.post("http://localhost:8000/approve", json={"run_id": run_id, "approved": False, "user": "slack"})
+    return JSONResponse(content={"text": "Received"})
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+================================================
+FILE: src/agentic_cicd/utils.py
+================================================
+def is_critical_file(file_path: str, critical_patterns: list) -> bool:
+    """Check if a file path matches any critical pattern."""
+    for pattern in critical_patterns:
+        if pattern in file_path:
+            return True
+    return False
+
+
+================================================
+FILE: src/agentic_cicd/adapters/__init__.py
+================================================
+from .github import GitHubAdapter
+from ..config import settings
+
+def get_vcs_adapter():
+    if settings.vcs_provider == "github":
+        return GitHubAdapter(settings.vcs_token, settings.vcs_repo)
+    elif settings.vcs_provider == "gitlab":
+        # Placeholder â€“ implement GitLabAdapter similarly
+        raise NotImplementedError("GitLab adapter not yet implemented")
+    else:
+        raise ValueError(f"Unsupported VCS provider: {settings.vcs_provider}")
+
+def get_ci_adapter():
+    provider = settings.ci_provider or settings.vcs_provider
+    if provider == "github":
+        token = settings.ci_token or settings.vcs_token
+        return GitHubAdapter(token, settings.vcs_repo)
+    elif provider == "gitlab":
+        raise NotImplementedError("GitLab CI adapter not yet implemented")
+    elif provider == "jenkins":
+        raise NotImplementedError("Jenkins adapter not yet implemented")
+    else:
+        raise ValueError(f"Unsupported CI provider: {provider}")
+
+
+================================================
+FILE: src/agentic_cicd/adapters/github.py
+================================================
+from ..core.interfaces import VCSProvider, CIProvider
+import httpx
+import base64
+import io
+import zipfile
+from junitparser import JUnitXml
+from typing import Optional, Dict, Any, List
+
+class GitHubAdapter(VCSProvider, CIProvider):
+    def __init__(self, token: str, repo: str):
+        self.token = token
+        self.repo = repo
+        self.base_url = "https://api.github.com"
+        self.headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+
+    async def _get(self, url: str) -> Optional[Dict]:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=self.headers)
+            if resp.status_code == 200:
+                return resp.json()
+        return None
+
+    async def _post(self, url: str, data: dict) -> bool:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=data, headers=self.headers)
+            return resp.status_code in (200, 201)
+
+    async def _put(self, url: str, data: dict) -> bool:
+        async with httpx.AsyncClient() as client:
+            resp = await client.put(url, json=data, headers=self.headers)
+            return resp.status_code in (200, 201)
+
+    # VCS methods
+    async def get_commit(self, sha: str) -> Dict[str, Any]:
+        url = f"{self.base_url}/repos/{self.repo}/commits/{sha}"
+        return await self._get(url) or {}
+
+    async def create_branch(self, branch_name: str, base_branch: str) -> bool:
+        # Get base branch SHA
+        base_url = f"{self.base_url}/repos/{self.repo}/git/ref/heads/{base_branch}"
+        base_data = await self._get(base_url)
+        if not base_data:
+            return False
+        sha = base_data["object"]["sha"]
+        # Create new branch
+        url = f"{self.base_url}/repos/{self.repo}/git/refs"
+        data = {"ref": f"refs/heads/{branch_name}", "sha": sha}
+        return await self._post(url, data)
+
+    async def create_pr(self, title: str, body: str, head: str, base: str) -> Optional[str]:
+        url = f"{self.base_url}/repos/{self.repo}/pulls"
+        data = {"title": title, "body": body, "head": head, "base": base}
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=data, headers=self.headers)
+            if resp.status_code == 201:
+                return resp.json()["html_url"]
+        return None
+
+    async def get_file_content(self, path: str, ref: str) -> Optional[str]:
+        url = f"{self.base_url}/repos/{self.repo}/contents/{path}?ref={ref}"
+        data = await self._get(url)
+        if data and "content" in data:
+            return base64.b64decode(data["content"]).decode("utf-8")
+        return None
+
+    async def update_file(self, path: str, content: str, message: str, branch: str) -> bool:
+        # Get current SHA if exists
+        url = f"{self.base_url}/repos/{self.repo}/contents/{path}?ref={branch}"
+        current = await self._get(url)
+        sha = current.get("sha") if current else None
+
+        content_b64 = base64.b64encode(content.encode()).decode()
+        data = {"message": message, "content": content_b64, "branch": branch}
+        if sha:
+            data["sha"] = sha
+
+        put_url = f"{self.base_url}/repos/{self.repo}/contents/{path}"
+        return await self._put(put_url, data)
+
+    # CI methods
+    async def get_run(self, run_id: str) -> Dict[str, Any]:
+        url = f"{self.base_url}/repos/{self.repo}/actions/runs/{run_id}"
+        return await self._get(url) or {}
+
+    async def get_logs(self, run_id: str) -> Optional[str]:
+        url = f"{self.base_url}/repos/{self.repo}/actions/runs/{run_id}/logs"
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, headers=self.headers, follow_redirects=True)
+            if resp.status_code == 200:
+                return resp.text
+        return None
+
+    async def get_test_results(self, run_id: str) -> str:
+        artifacts_url = f"{self.base_url}/repos/{self.repo}/actions/runs/{run_id}/artifacts"
+        artifacts = await self._get(artifacts_url)
+        artifacts = artifacts.get("artifacts", []) if artifacts else []
+        test_artifact = None
+        for art in artifacts:
+            name = art["name"].lower()
+            if "test" in name or "junit" in name or "report" in name:
+                test_artifact = art
+                break
+        if not test_artifact:
+            return "No test artifact found."
+
+        # Download zip
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(test_artifact["archive_download_url"], headers=self.headers, follow_redirects=True)
+            if resp.status_code != 200:
+                return "Failed to download artifact."
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
+                xml_files = [f for f in z.namelist() if f.endswith(".xml")]
+                if not xml_files:
+                    return "No XML file in artifact."
+                with z.open(xml_files[0]) as f:
+                    content = f.read().decode("utf-8")
+                    xml = JUnitXml.fromstring(content)
+                    failures = []
+                    for suite in xml:
+                        for case in suite:
+                            if case.result and case.result.type == "failure":
+                                failures.append(f"{case.name}: {case.result.message}")
+                    if failures:
+                        return "Test failures:\n" + "\n".join(failures)
+                    else:
+                        return "Test report found, but no failures."
+        except Exception as e:
+            return f"Error parsing test artifact: {e}"
+
+    async def list_runs(self, status: Optional[str] = None, limit: int = 30) -> List[Dict[str, Any]]:
+        url = f"{self.base_url}/repos/{self.repo}/actions/runs?per_page={limit}"
+        if status:
+            url += f"&status={status}"
+        data = await self._get(url)
+        return data.get("workflow_runs", []) if data else []
+
+    async def trigger_workflow(self, workflow_id: str, ref: str, inputs: dict) -> bool:
+        url = f"{self.base_url}/repos/{self.repo}/actions/workflows/{workflow_id}/dispatches"
+        data = {"ref": ref}
+        if inputs:
+            data["inputs"] = inputs
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=data, headers=self.headers)
+            return resp.status_code == 204
+
+
+================================================
+FILE: src/agentic_cicd/adapters/gitlab.py
+================================================
+from ..core.interfaces import VCSProvider, CIProvider
+from typing import Dict, Any, Optional, List
+
+class GitLabAdapter(VCSProvider, CIProvider):
+    def __init__(self, token: str, repo: str):
+        raise NotImplementedError("GitLab adapter is not yet implemented")
+
+
+================================================
+FILE: src/agentic_cicd/adapters/jenkins.py
+================================================
+from ..core.interfaces import CIProvider
+from typing import Dict, Any, Optional, List
+
+class JenkinsAdapter(CIProvider):
+    def __init__(self, url: str, token: str):
+        raise NotImplementedError("Jenkins adapter is not yet implemented")
+
+
+================================================
+FILE: src/agentic_cicd/adapters/llm.py
+================================================
+from ..core.interfaces import LLMProvider
+from langchain_google_genai import ChatGoogleGenerativeAI
+from ..config import settings
+
+class GeminiProvider(LLMProvider):
+    def __init__(self, api_key: str = None, model: str = None):
+        self.api_key = api_key or settings.llm_api_key
+        self.model = model or settings.llm_model
+        self.llm = ChatGoogleGenerativeAI(
+            model=self.model,
+            google_api_key=self.api_key,
+            temperature=0
+        )
+
+    async def generate(self, prompt: str, **kwargs) -> str:
+        response = await self.llm.ainvoke(prompt)
+        return response.content
+
+
+class OpenAIProvider(LLMProvider):
+    def __init__(self, api_key: str, model: str = "gpt-4"):
+        raise NotImplementedError("OpenAI provider not yet implemented")
+
+def get_llm_provider():
+    if settings.llm_provider == "gemini":
+        return GeminiProvider()
+    elif settings.llm_provider == "openai":
+        return OpenAIProvider(settings.llm_api_key)
+    else:
+        raise ValueError(f"Unknown LLM provider: {settings.llm_provider}")
+
+
+================================================
+FILE: src/agentic_cicd/agents/__init__.py
+================================================
+from .monitor import MonitorAgent
+from .diagnose import DiagnoseAgent
+from .security import SecurityAgent
+from .governance import GovernanceAgent
+from .repair import RepairAgent
+from .release import ReleaseAgent
+
+_agent_classes = {
+    "monitor": MonitorAgent,
+    "diagnose": DiagnoseAgent,
+    "security": SecurityAgent,
+    "governance": GovernanceAgent,
+    "repair": RepairAgent,
+    "release": ReleaseAgent,
+}
+
+def get_agent(name: str, llm, vcs, ci, notifier):
+    cls = _agent_classes.get(name)
+    if not cls:
+        raise ValueError(f"Unknown agent: {name}")
+    return cls(llm, vcs, ci, notifier)
+
+
+================================================
+FILE: src/agentic_cicd/agents/base.py
+================================================
+from abc import ABC, abstractmethod
+from typing import Dict, Any
+from ..core.interfaces import LLMProvider, VCSProvider, CIProvider, NotificationProvider
+
+class Agent(ABC):
+    def __init__(self, llm: LLMProvider, vcs: VCSProvider, ci: CIProvider, notifier: NotificationProvider):
+        self.llm = llm
+        self.vcs = vcs
+        self.ci = ci
+        self.notifier = notifier
+
+    @abstractmethod
+    async def process(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        pass
+
+
+================================================
+FILE: src/agentic_cicd/agents/diagnose.py
+================================================
+import json
+import logging
+from langchain_core.prompts import ChatPromptTemplate
+from .base import Agent
+from ..knowledge_base import KnowledgeBase
+
+logger = logging.getLogger(__name__)
+
+diagnose_prompt = ChatPromptTemplate.from_messages([("human", """
+Analyze this CI/CD failure.
+
+Commit Message: {commit_message}
+Changed files: {diff}
+Logs (last 2000 chars): {logs}
+Test output: {test_output}
+Similar past issues: {similar_issues}
+
+Output JSON:
+{{
+  "root_cause": "...",
+  "confidence": 0.0-1.0,
+  "suggested_fix_type": "dependency|test_failure|syntax_error|config_error|flaky_test|deploy_failure|other",
+  "details": "...",
+  "requires_approval": true/false
+}}
+""")])
+
+class DiagnoseAgent(Agent):
+    async def process(self, state: dict) -> dict:
+        commit_sha = state["commit_sha"]
+        commit = await self.vcs.get_commit(commit_sha)
+        if not commit:
+            state["diagnosis"] = {"root_cause": "Could not fetch commit details", "confidence": 0.0}
+            return state
+
+        diff = "\n".join([f"{f['filename']}: {f['status']}" for f in commit.get("files", [])])
+        kb = KnowledgeBase()
+        similar_docs = kb.search(state["logs"][:500] if state["logs"] else "")
+        similar_text = "\n".join([doc.page_content for doc in similar_docs]) if similar_docs else "None"
+
+        prompt = diagnose_prompt.format(
+            commit_message=commit["commit"]["message"],
+            diff=diff,
+            logs=state["logs"][-2000:] if state["logs"] else "",
+            test_output=state.get("test_output", ""),
+            similar_issues=similar_text
+        )
+        response = await self.llm.generate(prompt)
+        try:
+            diagnosis = json.loads(response)
+        except Exception as e:
+            logger.error(f"Failed to parse diagnosis JSON: {e}")
+            diagnosis = {
+                "root_cause": "Unknown",
+                "confidence": 0.0,
+                "suggested_fix_type": "other",
+                "details": "",
+                "requires_approval": True
+            }
+        state["diagnosis"] = diagnosis
+        return state
+
+
+================================================
+FILE: src/agentic_cicd/agents/governance.py
+================================================
+import logging
+from .base import Agent
+from ..utils import is_critical_file
+from ..config import settings
+
+logger = logging.getLogger(__name__)
+
+class GovernanceAgent(Agent):
+    async def process(self, state: dict) -> dict:
+        diag = state.get("diagnosis", {})
+        sec = state.get("security_issues", {})
+        run_data = state.get("run_data", {})
+
+        state["requires_approval"] = False
+
+        # Security vulnerabilities
+        if sec.get("vulnerabilities"):
+            state["requires_approval"] = True
+            logger.info("Approval required due to security vulnerabilities")
+
+        # Low confidence diagnosis
+        threshold = settings.governance.get("confidence_threshold", 0.7)
+        if diag.get("confidence", 1.0) < threshold:
+            state["requires_approval"] = True
+            logger.info("Approval required due to low confidence diagnosis")
+
+        # Critical files changed
+        head_commit = run_data.get("head_commit", {})
+        modified_files = head_commit.get("modified", [])
+        critical = settings.governance.get("critical_files", [])
+        if any(is_critical_file(f, critical) for f in modified_files):
+            state["requires_approval"] = True
+            logger.info("Approval required due to changes in critical files")
+
+        # If approval needed, send notification and update DB
+        if state["requires_approval"] and self.notifier:
+            await self.notifier.send_approval_request(
+                str(state["run_id"]),
+                diag,
+                state.get("fix_plan")
+            )
+            # Update database status to pending (handled in graph)
+        return state
+
+
+================================================
+FILE: src/agentic_cicd/agents/monitor.py
+================================================
+from .base import Agent
+import logging
+
+logger = logging.getLogger(__name__)
+
+class MonitorAgent(Agent):
+    async def process(self, state: dict) -> dict:
+        run_id = state["run_id"]
+        logger.info(f"Monitor agent processing run {run_id}")
+        run_data = await self.ci.get_run(str(run_id))
+        if not run_data:
+            state["error"] = f"Run {run_id} not found"
+            return state
+
+        logs = await self.ci.get_logs(str(run_id))
+        test_output = await self.ci.get_test_results(str(run_id))
+
+        state.update({
+            "run_data": run_data,
+            "logs": logs,
+            "test_output": test_output,
+            "branch": run_data.get("head_branch"),
+            "commit_sha": run_data.get("head_sha"),
+        })
+        return state
+
+
+================================================
+FILE: src/agentic_cicd/agents/release.py
+================================================
+import asyncio
+import logging
+from .base import Agent
+
+logger = logging.getLogger(__name__)
+
+class ReleaseAgent(Agent):
+    async def process(self, state: dict) -> dict:
+        environment = "production"  # could be from config
+        canary_percent = 10
+
+        logger.info(f"Initiating canary deployment to {environment} with {canary_percent}%")
+        inputs = {"environment": environment, "canary": str(canary_percent)}
+        success = await self.ci.trigger_workflow("deploy.yml", ref="main", inputs=inputs)
+
+        if not success:
+            state["error"] = "Failed to trigger deployment workflow"
+            return state
+
+        # In a real system, monitor metrics here
+        await asyncio.sleep(300)  # 5 minutes
+        state["deployment_result"] = {"status": "success", "environment": environment}
+        return state
+
+
+================================================
+FILE: src/agentic_cicd/agents/repair.py
+================================================
+import json
+import time
+import logging
+from langchain_core.prompts import ChatPromptTemplate
+from .base import Agent
+from ..knowledge_base import KnowledgeBase
+
+logger = logging.getLogger(__name__)
+
+repair_prompt = ChatPromptTemplate.from_messages([("human", """
+Based on the diagnosis, propose a fix.
+
+Root cause: {root_cause}
+Fix type: {fix_type}
+Details: {details}
+Security issues: {security}
+Current relevant files: {repo_files}
+Past fixes: {past_fixes}
+
+Output JSON:
+{{
+  "strategy": "file_update|retry|rollback|deploy",
+  "files_to_change": [{{"path": "...", "new_content": "..."}}],
+  "commit_message": "...",
+  "pr_title": "...",
+  "pr_body": "...",
+  "retry": false
+}}
+""")])
+
+class RepairAgent(Agent):
+    async def process(self, state: dict) -> dict:
+        diag = state["diagnosis"]
+        sec = state.get("security_issues", {})
+
+        # Fetch common files from repo
+        repo_files = {}
+        for f in ["requirements.txt", "setup.py", "Dockerfile", ".github/workflows/ci.yml"]:
+            content = await self.vcs.get_file_content(f, state.get("branch", "main"))
+            if content:
+                repo_files[f] = content
+
+        kb = KnowledgeBase()
+        past_docs = kb.search(diag["root_cause"])
+        past_fixes = "\n".join([doc.page_content for doc in past_docs]) if past_docs else "None"
+
+        prompt = repair_prompt.format(
+            root_cause=diag["root_cause"],
+            fix_type=diag["suggested_fix_type"],
+            details=diag.get("details", ""),
+            security=json.dumps(sec),
+            repo_files=json.dumps(repo_files),
+            past_fixes=past_fixes
+        )
+        response = await self.llm.generate(prompt)
+        try:
+            fix_plan = json.loads(response)
+        except Exception as e:
+            logger.error(f"Failed to parse fix plan JSON: {e}")
+            fix_plan = {
+                "strategy": "other",
+                "files_to_change": [],
+                "commit_message": "Auto-fix",
+                "pr_title": "Auto-fix pipeline failure",
+                "pr_body": response,
+                "retry": False
+            }
+        state["fix_plan"] = fix_plan
+
+        # If no approval required, apply immediately
+        if not state.get("requires_approval"):
+            pr_url = await self._apply_fix(fix_plan, state.get("branch", "main"))
+            state["pr_url"] = pr_url
+            kb.add_fix(
+                problem=diag["root_cause"],
+                solution=fix_plan.get("pr_body", ""),
+                fix_type=diag["suggested_fix_type"],
+                success=pr_url is not None,
+                pr_url=pr_url
+            )
+        return state
+
+    async def _apply_fix(self, fix_plan: dict, base_branch: str) -> str | None:
+        if fix_plan.get("retry"):
+            success = await self.ci.trigger_workflow("ci.yml", ref=base_branch, inputs={})
+            return "retry_triggered" if success else None
+
+        if not fix_plan.get("files_to_change"):
+            return None
+
+        branch_name = f"auto-fix-{int(time.time())}"
+        if not await self.vcs.create_branch(branch_name, base_branch):
+            return None
+
+        for fc in fix_plan["files_to_change"]:
+            await self.vcs.update_file(fc["path"], fc["new_content"], fix_plan["commit_message"], branch_name)
+
+        pr_url = await self.vcs.create_pr(
+            title=fix_plan["pr_title"],
+            body=fix_plan["pr_body"],
+            head=branch_name,
+            base=base_branch
+        )
+        return pr_url
+
+
+================================================
+FILE: src/agentic_cicd/agents/security.py
+================================================
+import asyncio
+import json
+import subprocess
+import logging
+from .base import Agent
+
+logger = logging.getLogger(__name__)
+
+class SecurityAgent(Agent):
+    async def process(self, state: dict) -> dict:
+        logger.info("Running security scan")
+        # Example: run safety check
+        loop = asyncio.get_event_loop()
+
+        def run_safety():
+            result = subprocess.run(["safety", "check", "--json"], capture_output=True, text=True)
+            return result.stdout
+
+        try:
+            output = await loop.run_in_executor(None, run_safety)
+            issues = json.loads(output) if output else {}
+        except Exception as e:
+            logger.error(f"Safety scan failed: {e}")
+            issues = {"error": str(e)}
+
+        state["security_issues"] = issues
+        if issues.get("vulnerabilities"):
+            state["requires_approval"] = True
+        return state
+
+
+================================================
+FILE: src/agentic_cicd/core/__init__.py
+================================================
+"""Core abstractions for agentic_cicd."""
+
+from .interfaces import AgentInterface
+
+__all__ = ["AgentInterface"]
+
+
+
+================================================
+FILE: src/agentic_cicd/core/interfaces.py
+================================================
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Optional, List
+
+class VCSProvider(ABC):
+    """Version Control System provider (GitHub, GitLab, etc.)"""
+
+    @abstractmethod
+    async def get_commit(self, sha: str) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def create_branch(self, branch_name: str, base_branch: str) -> bool:
+        pass
+
+    @abstractmethod
+    async def create_pr(self, title: str, body: str, head: str, base: str) -> Optional[str]:
+        """Return PR URL if created."""
+        pass
+
+    @abstractmethod
+    async def get_file_content(self, path: str, ref: str) -> Optional[str]:
+        pass
+
+    @abstractmethod
+    async def update_file(self, path: str, content: str, message: str, branch: str) -> bool:
+        pass
+
+
+class CIProvider(ABC):
+    """CI platform provider (GitHub Actions, GitLab CI, Jenkins)"""
+
+    @abstractmethod
+    async def get_run(self, run_id: str) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def get_logs(self, run_id: str) -> Optional[str]:
+        pass
+
+    @abstractmethod
+    async def get_test_results(self, run_id: str) -> str:
+        pass
+
+    @abstractmethod
+    async def list_runs(self, status: Optional[str] = None, limit: int = 30) -> List[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    async def trigger_workflow(self, workflow_id: str, ref: str, inputs: Dict) -> bool:
+        pass
+
+
+class LLMProvider(ABC):
+    """Large Language Model provider"""
+
+    @abstractmethod
+    async def generate(self, prompt: str, **kwargs) -> str:
+        pass
+
+
+class NotificationProvider(ABC):
+    """Notification service (Slack, Teams, email)"""
+
+    @abstractmethod
+    async def send_approval_request(self, run_id: str, diagnosis: dict, fix_plan: dict = None):
+        pass
+
+
+================================================
+FILE: src/agentic_cicd/core/models.py
+================================================
+from pydantic import BaseModel
+from typing import Optional, Dict, Any, List
+
+class WorkflowState(BaseModel):
+    run_id: int
+    run_data: Optional[Dict[str, Any]] = None
+    logs: Optional[str] = None
+    test_output: Optional[str] = None
+    branch: Optional[str] = None
+    commit_sha: Optional[str] = None
+    diagnosis: Optional[Dict[str, Any]] = None
+    security_issues: Optional[Dict[str, Any]] = None
+    requires_approval: bool = False
+    fix_plan: Optional[Dict[str, Any]] = None
+    pr_url: Optional[str] = None
+    deployment_result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
+class ApprovalRequest(BaseModel):
+    run_id: int
+    approved: bool
+    user: str
+
+
+================================================
+FILE: src/agentic_cicd/notifications/__init__.py
+================================================
+from .slack import SlackNotifier
+from ..config import settings
+
+def get_notification_provider():
+    if settings.slack_token:
+        return SlackNotifier(settings.slack_token, settings.slack_channel)
+    return None
+
+
+================================================
+FILE: src/agentic_cicd/notifications/slack.py
+================================================
+from slack_sdk.web.async_client import AsyncWebClient
+from ..core.interfaces import NotificationProvider
+
+class SlackNotifier(NotificationProvider):
+    def __init__(self, token: str, channel: str):
+        self.client = AsyncWebClient(token=token)
+        self.channel = channel
+
+    async def send_approval_request(self, run_id: str, diagnosis: dict, fix_plan: dict = None):
+        blocks = [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"*Approval Required for Run #{run_id}*"}
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Root Cause:* {diagnosis.get('root_cause', 'N/A')}\n"
+                            f"*Confidence:* {diagnosis.get('confidence', 0.0)}\n"
+                            f"*Fix Type:* {diagnosis.get('suggested_fix_type', 'unknown')}"
+                }
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Approve"},
+                        "style": "primary",
+                        "value": f"approve_{run_id}",
+                        "action_id": "approve_run"
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Reject"},
+                        "style": "danger",
+                        "value": f"reject_{run_id}",
+                        "action_id": "reject_run"
+                    }
+                ]
+            }
+        ]
+        await self.client.chat_postMessage(channel=self.channel, blocks=blocks)
+
+
+================================================
+FILE: tests/__init__.py
+================================================
+"""Tests package for agentic-cicd Pipeline."""
+
+

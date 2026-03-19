@@ -1,9 +1,44 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-cicd"
-version = "0.0.0"
-description = "Scaffolded agentic CICD pipeline package"
-authors = [{name = ""}]
+version = "0.1.0"
+description = "Autonomous CI/CD pipeline repair and release orchestration"
+authors = [
+    {name = "Gore Sakshi", email = "goresakshi2005@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "python-dotenv",
+    "httpx",
+    "click",
+    "pyyaml",
+    "pydantic-settings",
+    "loguru",
+    "langchain",
+    "langchain-community",
+    "langchain-google-genai",
+    "langgraph",
+    "faiss-cpu",
+    "sqlalchemy",
+    "alembic",
+    "slack-sdk",
+    "junitparser",
+    "safety",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-mock",
+    "python-multipart"
+]
+
+[project.scripts]
+agentic-cicd = "agentic_cicd.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]

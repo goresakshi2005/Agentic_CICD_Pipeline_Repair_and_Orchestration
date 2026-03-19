@@ -1,12 +1,33 @@
-MIT License
 
-Copyright (c) 2026
+---
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+### 3. `.env.example` (new file – place in project root)
+```env
+# Version Control System
+VCS_TOKEN=your_github_token
+VCS_REPO=owner/repo
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+# LLM Provider
+LLM_API_KEY=your_gemini_or_openai_key
+LLM_PROVIDER=gemini        # or "openai"
+LLM_MODEL=gemini-2.5-flash
+
+# Optional Slack
+SLACK_TOKEN=xoxb-your-slack-token
+SLACK_CHANNEL=#deploy-approvals
+
+# Database
+DATABASE_URL=sqlite:///./app.db
+
+# CI (if different from VCS)
+CI_TOKEN=
+CI_URL=
+
+# Webhook secret (for GitHub)
+WEBHOOK_SECRET=
+
+# Polling interval (seconds)
+POLL_INTERVAL=60
+
+# Debug mode
+DEBUG=false

@@ -1,3 +1,18 @@
-# agentic-cicd Pipeline (src layout)
+# Agentic CI/CD
 
-This repository contains the `agentic_cicd` package under `src/` and scaffolding for adapters, agents, notifications, and a FastAPI server placeholder.
+Autonomous pipeline repair and intelligent release orchestration.
+
+## Features
+
+- **Multi‑agent coordination** with LangGraph
+- **LLM‑powered diagnosis** (Gemini, OpenAI)
+- **Security scanning** (Safety, etc.)
+- **Automatic fix generation** (PR creation)
+- **Slack‑based human approvals**
+- **Canary deployment orchestration**
+- **Knowledge base** of past failures (FAISS)
+
+## Installation
+
+```bash
+pip install agentic-cicd
